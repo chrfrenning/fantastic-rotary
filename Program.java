@@ -80,6 +80,8 @@ public class Program implements AdvancedMessageListener {
      */
 
     void repl() {
+        System.out.println("Welcome to the bank, type a command, 'help' for instructions, or 'exit' to quit.");
+
         Scanner scanner = new Scanner(System.in);
         while (true) {
             String command = scanner.nextLine();
@@ -137,6 +139,21 @@ public class Program implements AdvancedMessageListener {
             case "sleep":
                 int duration = Integer.parseInt(tokens[1]);
                 handleSleep(duration);
+                break;
+            case "help":
+                System.out.println("Available commands:\n" +
+                        "getQuickBalance\n" +
+                        "getSyncedBalance\n" +
+                        "deposit <amount>\n" +
+                        "withdraw <amount>\n" +
+                        "addInterest <rate>\n" +
+                        "getHistory\n" +
+                        "checkTxStatus <transactionId>\n" +
+                        "cleanHistory\n" +
+                        "memberInfo\n" +
+                        "sleep <duration>\n" +
+                        "help\n" +
+                        "exit");
                 break;
             default:
                 System.out.println("Invalid command.");
@@ -260,9 +277,10 @@ public class Program implements AdvancedMessageListener {
         for (Transaction t : outstandingTransactions) {
             if (t.getUniqueId().equals(tx.getUniqueId())) {
                 outstandingTransactions.remove(t);
-                txHistory.add(tx);
                 // apply the transaction
                 theAccount.deposit(5);
+                // add it to the history
+                txHistory.add(tx);
                 return; // important, not execute rest of function
             }
         }
