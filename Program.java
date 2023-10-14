@@ -26,6 +26,8 @@ public class Program implements AdvancedMessageListener {
             message.setObject("MESSAGE1");
             connection.multicast(message);
 
+            Thread.sleep(5000);
+
         } catch ( Exception e ) {
             System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
         }
