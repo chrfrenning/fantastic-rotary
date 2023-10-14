@@ -7,34 +7,30 @@ import java.util.Scanner;
 import spread.*;
 
 public class Program implements AdvancedMessageListener {
-    private static final String UNIQUE_ID = "V13isLmyl";
-    private static final String IFI_SERVER_IP = "127.0.0.1";
-    private static final int IFI_SERVER_PORT = 8764;
-    private static final String GROUP_NAME = "GROUP7";
+    static final String UNIQUE_ID = "V13isLmyl";
+    static final String IFI_SERVER_IP = "127.0.0.1";
+    static final int IFI_SERVER_PORT = 8764;
+    static final String GROUP_NAME = "GROUP7";
 
-    SpreadConnection connection;
-    SpreadGroup group;
+    private SpreadConnection connection;
+    private SpreadGroup group;
     private Account theAccount = new Account();
-    private List<Transaction> allTransactions = new ArrayList<Transaction>();
     private List<Transaction> outstandingTransactions = new ArrayList<Transaction>();
+    private List<Transaction> txHistory = new ArrayList<Transaction>();
 
     public Program() throws Exception {
         connection = new SpreadConnection();
         connection.connect(InetAddress.getByName(IFI_SERVER_IP), IFI_SERVER_PORT, UNIQUE_ID, true, true);
 
-        SpreadGroup group = new SpreadGroup();
+        group = new SpreadGroup();
         group.join(connection, GROUP_NAME);
+
+        connection.add(this); // add myself as listener for spread messages
     }
 
     public static void main(String[] args) {
         try {
             Program thisInstance = new Program();
-
-            // SpreadMessage message = new SpreadMessage();
-            // message.addGroup(group);
-            // message.setFifo();
-            // message.setObject("MESSAGE1");
-            // connection.multicast(message);
 
             // interactive mode now, must be changed to reading command from file if <filename> is provided in args
             thisInstance.repl();
@@ -44,18 +40,19 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
-    void sendDummyMessage() {
+    void sleepSecond() {
         try {
-            SpreadMessage message = new SpreadMessage();
-            message.addGroup(group);
-            message.setFifo();
-            message.setObject("MESSAGE1");
-            this.connection.multicast(message);
-        }
-        catch (Exception e) {
-            System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
+
+
+
+    /*
+     * REPL
+     */
 
     void repl() {
         Scanner scanner = new Scanner(System.in);
@@ -108,15 +105,30 @@ public class Program implements AdvancedMessageListener {
     }
 
     void handleGetQuickBalance() {
-        System.out.println("getQuickBalance");
+        //theAccount.getBalance();
+        System.out.println("getQuickBalance: " + theAccount.getBalance());
     }
 
     void handleGetSyncedBalance() {
-        System.out.println("getSyncedBalance");
+        // ensures we have no pendign tx's before returning balance
+        try {
+            final int SLEEP_TIME = 1000;
+            while ( outstandingTransactions.size() > 0 )
+                Thread.sleep(SLEEP_TIME);
+        } catch (InterruptedException e) {
+        }
+        finally {
+            System.out.println("getSyncedBalance: " + theAccount.getBalance());
+        }
     }
 
     void handleDeposit(double amount) {
-        System.out.println("handleDeposit: " + amount);
+        System.out.println("Handling deposit: " + amount);
+
+        // create new transaction, post the tx to all replicas...
+        Transaction tx = new Transaction(String.format("deposit %f", amount));
+        outstandingTransactions.add(tx);
+        sendMessage(tx.toString());
     }
 
     void handleAddInterest(double rate) {
@@ -147,8 +159,39 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
+    void sendMessage(String string) {
+        try {
+            SpreadMessage message = new SpreadMessage();
+            message.addGroup(group);
+            message.setFifo();
+
+            byte[] bytes = string.getBytes("US-ASCII");
+            message.setData(bytes);
+
+            this.connection.multicast(message);
+        }
+        catch (Exception e) {
+            System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
+        }
+    }
+
+    /*
+     * Message handling
+     */
+
     public void regularMessageReceived(SpreadMessage message) {
         System.out.println("Regular message received: " + getMessageString(message));
+        Transaction tx = Transaction.fromString(getMessageString(message));
+        txHistory.add(tx);
+        // apply the transaction
+        theAccount.deposit(5);
+        // remove it from the outstanding transaction list
+        for (Transaction t : outstandingTransactions) {
+            if (t.getUniqueId().equals(tx.getUniqueId())) {
+                outstandingTransactions.remove(t);
+                break;
+            }
+        }
     }
 
     public void membershipMessageReceived(SpreadMessage message) {

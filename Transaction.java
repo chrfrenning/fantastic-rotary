@@ -24,4 +24,16 @@ public class Transaction {
     public void setUniqueId(String uniqueId) {
         this.uniqueId = uniqueId;
     }
+
+    public String toString() {
+        return uniqueId + " " + command;
+    }
+
+    public static Transaction fromString(String str) {
+        String[] parts = str.split(" ", 2);
+        Transaction t = new Transaction(parts[1]);
+        t.setUniqueId(parts[0]);
+        
+        return t;
+    }
 }
