@@ -5,8 +5,8 @@ import spread.*;
 public class Program implements AdvancedMessageListener {
     public static void main(String[] args) {
         final String UNIQUE_ID = "V13isLmyl";
-        final String IFI_SERVER_IP = "129.240.65.59";
-        final int IFI_SERVER_PORT = 4803;
+        final String IFI_SERVER_IP = "127.0.0.1";
+        final int IFI_SERVER_PORT = 8764;
         final String GROUP_NAME = "GROUP7";
 
         try {
