@@ -1,2 +1,2 @@
-javac -cp 'spread.jar' Program.java
+javac -cp 'spread.jar' *.java
 java -cp '.:spread.jar' Program
