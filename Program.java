@@ -17,16 +17,9 @@ public class Program implements AdvancedMessageListener {
     private Account theAccount = new Account();
     private List<Transaction> outstandingTransactions = new ArrayList<Transaction>();
     private List<Transaction> txHistory = new ArrayList<Transaction>();
-
-    public Program() throws Exception {
-        connection = new SpreadConnection();
-        connection.connect(InetAddress.getByName(IFI_SERVER_IP), IFI_SERVER_PORT, UNIQUE_ID, true, true);
-
-        group = new SpreadGroup();
-        group.join(connection, GROUP_NAME);
-
-        connection.add(this); // add myself as listener for spread messages
-    }
+    private List<String> groupMembers = new ArrayList<String>();
+    private boolean run = true;
+    private Thread syncThread;
 
     public static void main(String[] args) {
         try {
@@ -48,6 +41,38 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
+    void sleepTenSeconds() {
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Program() throws Exception {
+        connection = new SpreadConnection();
+        connection.connect(InetAddress.getByName(IFI_SERVER_IP), IFI_SERVER_PORT, UNIQUE_ID, true, true);
+
+        group = new SpreadGroup();
+        group.join(connection, GROUP_NAME);
+
+        connection.add(this); // add myself as listener for spread messages
+
+        // create a background thread for syncOutstandingTransactions
+        syncThread = new Thread(() -> {
+            while( run ) {
+                sleepTenSeconds();
+
+                // send all outstanding transactions
+                for (Transaction tx : outstandingTransactions) {
+                    sendMessage(tx.toString());
+                }
+            }
+        });
+        syncThread.setDaemon(true);
+        syncThread.start();
+    }
+
 
 
     /*
@@ -59,9 +84,19 @@ public class Program implements AdvancedMessageListener {
         while (true) {
             String command = scanner.nextLine();
             if (command.equals("exit")) {
+                run = false;
+                joinBackgroundThread();
                 break;
             }
             processCommand(command);
+        }
+    }
+
+    void joinBackgroundThread() {
+        try {
+            syncThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 
@@ -77,6 +112,10 @@ public class Program implements AdvancedMessageListener {
             case "deposit":
                 double amount = Double.parseDouble(tokens[1]);
                 handleDeposit(amount);
+                break;
+            case "withdraw":
+                amount = Double.parseDouble(tokens[1]);
+                handleWithdraw(amount);
                 break;
             case "addInterest":
                 double rate = Double.parseDouble(tokens[1]);
@@ -125,22 +164,51 @@ public class Program implements AdvancedMessageListener {
     void handleDeposit(double amount) {
         System.out.println("Handling deposit: " + amount);
 
-        // create new transaction, post the tx to all replicas...
         Transaction tx = new Transaction(String.format("deposit %f", amount));
         outstandingTransactions.add(tx);
-        sendMessage(tx.toString());
+    }
+
+    void handleWithdraw(double amount) {
+        System.out.println("handleWithdraw: " + amount);
+
+        Transaction tx = new Transaction(String.format("withdraw %f", amount));
+        outstandingTransactions.add(tx);
     }
 
     void handleAddInterest(double rate) {
         System.out.println("handleAddInterest: " + rate);
+
+        Transaction tx = new Transaction(String.format("addInterest %f", rate));
+        outstandingTransactions.add(tx);
     }
 
     void handleGetHistory() {
-        System.out.println("handleGetHistory");
+        System.out.println("Transaction History\n-------------------");
+        // print the transaction history
+        for (Transaction t : txHistory) {
+            System.out.println(t.toString());
+        }
     }
 
     void handleCheckTransactionStatus(String transactionId) {
         System.out.println("handleCheckTransactionStatus: " + transactionId);
+        // check if transactionId is in outstandingTransactions
+        for (Transaction t : outstandingTransactions) {
+            if (t.getUniqueId().equals(transactionId)) {
+                System.out.println("Transaction is outstanding");
+                return;
+            }
+        }
+
+        System.out.println("Transaction is not in outstanding");
+
+        // should now be in history
+        for (Transaction t : txHistory) {
+            if (t.getUniqueId().equals(transactionId)) {
+                System.out.println("Transaction is in history");
+                return;
+            }
+        }
     }
 
     void handleCleanHistory() {
@@ -148,7 +216,12 @@ public class Program implements AdvancedMessageListener {
     }
 
     void handleMemberInfo() {
-        System.out.println("handleMemberInfo");
+        // get group participants from spread and print to console
+        String memstr = "Group Members\n-------------\n";
+        for (String member : this.groupMembers) {
+            memstr += member.toString() + "\n";
+        }
+        System.out.println(memstr);
     }
 
     void handleSleep(int duration) {
@@ -182,20 +255,42 @@ public class Program implements AdvancedMessageListener {
     public void regularMessageReceived(SpreadMessage message) {
         System.out.println("Regular message received: " + getMessageString(message));
         Transaction tx = Transaction.fromString(getMessageString(message));
-        txHistory.add(tx);
-        // apply the transaction
-        theAccount.deposit(5);
+        
         // remove it from the outstanding transaction list
         for (Transaction t : outstandingTransactions) {
             if (t.getUniqueId().equals(tx.getUniqueId())) {
                 outstandingTransactions.remove(t);
-                break;
+                txHistory.add(tx);
+                // apply the transaction
+                theAccount.deposit(5);
+                return; // important, not execute rest of function
             }
+        }
+
+        // tx was not found, we append it to the list
+        outstandingTransactions.add(tx);
+    }
+
+    void handleTransaction(Transaction tx) {
+        String[] tokens = tx.getCommand().split(" ");
+        switch (tokens[0]) {
+            case "deposit":
+                this.theAccount.deposit(Double.parseDouble(tokens[1]));
+                break;
+            case "withdraw":
+                this.theAccount.withdraw(Double.parseDouble(tokens[1]));
+                break;
+            case "addInterest":
+                this.theAccount.addInterest(Double.parseDouble(tokens[1]));
+                break;
+            default:
+                System.out.println("Invalid transaction, ignoring.");
         }
     }
 
     public void membershipMessageReceived(SpreadMessage message) {
         System.out.println("Membership message received: " +  getMessageString(message));
+        // add or remove from groupMembers list
     }
 
     String getMessageString(SpreadMessage message) {
