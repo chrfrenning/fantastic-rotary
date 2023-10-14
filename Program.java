@@ -17,14 +17,14 @@ public class Program implements AdvancedMessageListener {
             SpreadGroup group = new SpreadGroup();
             group.join(connection, GROUP_NAME);
 
+            AdvancedMessageListener listener = new Program();
+            connection.add(listener);
+
             SpreadMessage message = new SpreadMessage();
             message.addGroup(group);
             message.setFifo();
             message.setObject("MESSAGE1");
             connection.multicast(message);
-
-            AdvancedMessageListener listener = new Program();
-            connection.add(listener);
 
         } catch ( Exception e ) {
             System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
