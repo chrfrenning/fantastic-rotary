@@ -12,36 +12,52 @@ public class Program implements AdvancedMessageListener {
     private static final int IFI_SERVER_PORT = 8764;
     private static final String GROUP_NAME = "GROUP7";
 
-    private static Account theAccount = new Account();
-    private static List<Transaction> allTransactions = new ArrayList<Transaction>();
-    private static List<Transaction> outstandingTransactions = new ArrayList<Transaction>();
+    SpreadConnection connection;
+    SpreadGroup group;
+    private Account theAccount = new Account();
+    private List<Transaction> allTransactions = new ArrayList<Transaction>();
+    private List<Transaction> outstandingTransactions = new ArrayList<Transaction>();
+
+    public Program() throws Exception {
+        connection = new SpreadConnection();
+        connection.connect(InetAddress.getByName(IFI_SERVER_IP), IFI_SERVER_PORT, UNIQUE_ID, true, true);
+
+        SpreadGroup group = new SpreadGroup();
+        group.join(connection, GROUP_NAME);
+    }
 
     public static void main(String[] args) {
         try {
-            SpreadConnection connection = new SpreadConnection();
-            connection.connect(InetAddress.getByName(IFI_SERVER_IP), IFI_SERVER_PORT, UNIQUE_ID, true, true);
-
-            SpreadGroup group = new SpreadGroup();
-            group.join(connection, GROUP_NAME);
-
             Program thisInstance = new Program();
-            connection.add(thisInstance);
 
-            SpreadMessage message = new SpreadMessage();
-            message.addGroup(group);
-            message.setFifo();
-            message.setObject("MESSAGE1");
-            connection.multicast(message);
+            // SpreadMessage message = new SpreadMessage();
+            // message.addGroup(group);
+            // message.setFifo();
+            // message.setObject("MESSAGE1");
+            // connection.multicast(message);
 
             // interactive mode now, must be changed to reading command from file if <filename> is provided in args
-            repl();
+            thisInstance.repl();
 
         } catch ( Exception e ) {
             System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
         }
     }
 
-    static void repl() {
+    void sendDummyMessage() {
+        try {
+            SpreadMessage message = new SpreadMessage();
+            message.addGroup(group);
+            message.setFifo();
+            message.setObject("MESSAGE1");
+            this.connection.multicast(message);
+        }
+        catch (Exception e) {
+            System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
+        }
+    }
+
+    void repl() {
         Scanner scanner = new Scanner(System.in);
         while (true) {
             String command = scanner.nextLine();
@@ -52,7 +68,7 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
-    static void processCommand(String command) {
+    void processCommand(String command) {
         String[] tokens = command.split(" ");
         switch (tokens[0]) {
             case "getQuickBalance":
@@ -74,7 +90,7 @@ public class Program implements AdvancedMessageListener {
                 break;
             case "checkTxStatus":
                 String transactionId = tokens[1];
-                handleCheckTxStatus(transactionId);
+                handleCheckTransactionStatus(transactionId);
                 break;
             case "cleanHistory":
                 handleCleanHistory();
@@ -91,39 +107,39 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
-    static void handleGetQuickBalance() {
+    void handleGetQuickBalance() {
         System.out.println("getQuickBalance");
     }
 
-    static void handleGetSyncedBalance() {
+    void handleGetSyncedBalance() {
         System.out.println("getSyncedBalance");
     }
 
-    static void handleDeposit(double amount) {
+    void handleDeposit(double amount) {
         System.out.println("handleDeposit: " + amount);
     }
 
-    static void handleAddInterest(double rate) {
+    void handleAddInterest(double rate) {
         System.out.println("handleAddInterest: " + rate);
     }
 
-    static void handleGetHistory() {
+    void handleGetHistory() {
         System.out.println("handleGetHistory");
     }
 
-    static void handleCheckTxStatus(String transactionId) {
-        System.out.println("handleCheckTxStatus: " + transactionId);
+    void handleCheckTransactionStatus(String transactionId) {
+        System.out.println("handleCheckTransactionStatus: " + transactionId);
     }
 
-    static void handleCleanHistory() {
+    void handleCleanHistory() {
         System.out.println("handleCleanHistory");
     }
 
-    static void handleMemberInfo() {
+    void handleMemberInfo() {
         System.out.println("handleMemberInfo");
     }
 
-    static void handleSleep(int duration) {
+    void handleSleep(int duration) {
         try {
             Thread.sleep(duration);
         } catch (InterruptedException e) {
