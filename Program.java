@@ -1,3 +1,4 @@
+import java.io.File;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +15,7 @@ public class Program implements AdvancedMessageListener {
     static String serverIp = "127.0.0.1";
     static int serverPort = 8764;
     static String accountName = "GROUP7-V13isLmyl";
-    static int minimumReplicas = 2;
+    static int minimumReplicas = 3;
     static String replicaName = UUID.randomUUID().toString().split("-")[0];
 
     private SpreadConnection connection;
@@ -131,7 +132,7 @@ public class Program implements AdvancedMessageListener {
      * Batch processing
      */
 
-    void process(String commandFileName) {
+    void process(String commandFileName) throws Exception {
         System.out.println("Processing commands from file: " + commandFileName);
 
         // Waiting for all replicas to join
@@ -143,7 +144,8 @@ public class Program implements AdvancedMessageListener {
         System.out.println("We have enough bank offices open, lets crunch those numbers!");
 
         // Process all transactions from the input file
-        Scanner scanner = new Scanner(System.in);
+        File file = new File(commandFileName);
+        Scanner scanner = new Scanner(file);
         while (true) {
             String command = scanner.nextLine();
             if (command.equals("exit")) {
@@ -153,6 +155,7 @@ public class Program implements AdvancedMessageListener {
             }
             processCommand(command);
         }
+        scanner.close();
     }
 
 
@@ -239,6 +242,9 @@ public class Program implements AdvancedMessageListener {
                         "help\n" +
                         "exit");
                 break;
+            case "stop":
+                Transaction tx = new Transaction("stop");
+                sendMessage(tx.toString());
             default:
                 System.out.println("Invalid command.");
         }
@@ -409,6 +415,9 @@ public class Program implements AdvancedMessageListener {
         System.err.println("Regular message received: " + getMessageString(message));
 
         Transaction tx = Transaction.fromString(getMessageString(message));
+        if (tx.getCommand().equals("stop")) {
+            System.exit(2);
+        }
 
         // handle the transaction
         boolean registerTransactionInHistory = handleTransaction( tx );
