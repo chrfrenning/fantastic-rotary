@@ -6,7 +6,7 @@ public class Transaction {
 
     public Transaction(String command) {
         this.command = command;
-        this.uniqueId = UUID.randomUUID().toString();
+        this.uniqueId = UUID.randomUUID().toString().split("-")[0];
     }
 
     public String getCommand() {

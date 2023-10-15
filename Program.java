@@ -2,15 +2,20 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
+import java.util.UUID;
 
 import spread.*;
 
 public class Program implements AdvancedMessageListener {
-    static final String UNIQUE_ID = "V13isLmyl";
-    static final String IFI_SERVER_IP = "127.0.0.1";
-    static final int IFI_SERVER_PORT = 8764;
-    static final String GROUP_NAME = "GROUP7";
+    static final int SECONDS_BETWEEN_SYNC = 2;
+
+    static String serverIp = "127.0.0.1";
+    static int serverPort = 8764;
+    static String accountName = "GROUP7-V13isLmyl";
+    static int minimumReplicas = 2;
+    static String replicaName = UUID.randomUUID().toString().split("-")[0];
 
     private SpreadConnection connection;
     private SpreadGroup group;
@@ -22,46 +27,91 @@ public class Program implements AdvancedMessageListener {
     private Thread syncThread;
 
     public static void main(String[] args) {
+
         try {
+            parseCommandLineArguments(args);
+            printSettings();
             Program thisInstance = new Program();
 
-            // interactive mode now, must be changed to reading command from file if <filename> is provided in args
-            thisInstance.repl();
+            // interactive or batch?
+            Optional<String> commandFileName = parseArguments(args, "file", "f");
+            if ( commandFileName.isPresent() ) {
+                thisInstance.process(commandFileName.get());
+            } else {
+                thisInstance.repl();
+            }
+
+            // we're done, clean up
+            thisInstance.connection.disconnect();
 
         } catch ( Exception e ) {
-            System.out.println("Catastrophic failure: " + e.getMessage() + "\n");
-        }
-    }
-
-    void sleepSecond() {
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
+            System.out.println("Catastrophic failure: " + e.getMessage() + "\n--- Stack Trace:\n");
             e.printStackTrace();
         }
+
     }
 
-    void sleepTenSeconds() {
+    private static void parseCommandLineArguments(String[] args) {
+        Optional<String> serverIpPrm = parseArguments(args, "server", "s");
+        serverIpPrm.ifPresent(s -> serverIp = s);
+
+        Optional<String> portPrm = parseArguments(args, "port", "p");
+        portPrm.ifPresent(s -> serverPort = Integer.parseInt(s));
+
+        Optional<String> accountNamePrm = parseArguments(args, "account", "a");
+        accountNamePrm.ifPresent(s -> accountName = s);
+
+        Optional<String> minimumReplicasPrm = parseArguments(args, "replicas", "m");
+        minimumReplicasPrm.ifPresent(s -> minimumReplicas = Integer.parseInt(s));
+
+        Optional<String> instanceIdPrm = parseArguments(args, "name", "n");
+        instanceIdPrm.ifPresent(s -> replicaName = s);
+    }
+
+    private static void printSettings() {
+        System.out.println("Settings:\n" +
+                "Server: " + serverIp + ":" + serverPort + "\n" +
+                "Account: " + accountName + "\n" +
+                "Replicas: " + minimumReplicas + "\n");
+    }
+
+    private static Optional<String> parseArguments(String[] args, String command, String shortcut) {
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("--" + command) || args[i].equals("-" + shortcut)) {
+                if (i + 1 < args.length) {
+                    return Optional.of(args[i + 1]);
+                } else {
+                    // Command exists but no argument follows.
+                    return Optional.empty();
+                }
+            }
+        }
+        // Command does not exist in the arguments.
+        return Optional.empty();
+    }
+
+    void sleep(int seconds) {
         try {
-            Thread.sleep(10000);
+            Thread.sleep(1000 * seconds);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
     public Program() throws Exception {
+
         connection = new SpreadConnection();
-        connection.connect(InetAddress.getByName(IFI_SERVER_IP), IFI_SERVER_PORT, UNIQUE_ID, true, true);
+        connection.connect(InetAddress.getByName(serverIp), serverPort, replicaName, true, true);
 
         group = new SpreadGroup();
-        group.join(connection, GROUP_NAME);
+        group.join(connection, accountName);
 
         connection.add(this); // add myself as listener for spread messages
 
         // create a background thread for syncOutstandingTransactions
         syncThread = new Thread(() -> {
             while( run ) {
-                sleepTenSeconds();
+                sleep(SECONDS_BETWEEN_SYNC);
 
                 // send all outstanding transactions
                 for (Transaction tx : outstandingTransactions) {
@@ -69,8 +119,40 @@ public class Program implements AdvancedMessageListener {
                 }
             }
         });
+
         syncThread.setDaemon(true);
         syncThread.start();
+
+    }
+
+
+
+    /*
+     * Batch processing
+     */
+
+    void process(String commandFileName) {
+        System.out.println("Processing commands from file: " + commandFileName);
+
+        // Waiting for all replicas to join
+        while (groupMembers.size() < minimumReplicas) {
+            sleep(5);
+        }
+
+        // We're ready to roll
+        System.out.println("We have enough bank offices open, lets crunch those numbers!");
+
+        // Process all transactions from the input file
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            String command = scanner.nextLine();
+            if (command.equals("exit")) {
+                run = false;
+                joinBackgroundThread();
+                break;
+            }
+            processCommand(command);
+        }
     }
 
 
@@ -105,9 +187,11 @@ public class Program implements AdvancedMessageListener {
     void processCommand(String command) {
         String[] tokens = command.split(" ");
         switch (tokens[0]) {
+            case "qbal":
             case "getQuickBalance":
                 handleGetQuickBalance();
                 break;
+            case "sbal":
             case "getSyncedBalance":
                 handleGetSyncedBalance();
                 break;
@@ -160,12 +244,32 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
+    boolean isOpen() {
+        return groupMembers.size() >= minimumReplicas;
+    }
+
     void handleGetQuickBalance() {
-        //theAccount.getBalance();
+        // check that we're open
+        if ( !isOpen() ) {
+            System.out.println("Not enough bank offices open, try again later.");
+            return;
+        }
+
+        // print the balance as we know it in this replica
         System.out.println("getQuickBalance: " + theAccount.getBalance());
     }
 
     void handleGetSyncedBalance() {
+        handleGetSyncedBalanceOrdered();
+    }
+
+    void handleGetSyncedBalanceNaive() {
+        // check that we're open
+        if ( !isOpen() ) {
+            System.out.println("Not enough bank offices open, try again later.");
+            return;
+        }
+
         // ensures we have no pendign tx's before returning balance
         try {
             final int SLEEP_TIME = 1000;
@@ -178,22 +282,57 @@ public class Program implements AdvancedMessageListener {
         }
     }
 
+    void handleGetSyncedBalanceOrdered() {
+        // check that we're open
+        if ( !isOpen() ) {
+            System.out.println("Not enough bank offices open, try again later.");
+            return;
+        }
+
+        // order this transaction via spread
+        System.out.println("Pending getSyncedBalance");
+
+        Transaction tx = new Transaction(String.format("getBalance %s", this.replicaName));
+        outstandingTransactions.add(tx);
+    }
+
     void handleDeposit(double amount) {
-        System.out.println("Handling deposit: " + amount);
+        // check that we're open
+        if ( !isOpen() ) {
+            System.out.println("Not enough bank offices open, try again later.");
+            return;
+        }
+        
+        // order this transaction via spread
+        System.out.println("Pending deposit: " + amount);
 
         Transaction tx = new Transaction(String.format("deposit %f", amount));
         outstandingTransactions.add(tx);
     }
 
     void handleWithdraw(double amount) {
-        System.out.println("handleWithdraw: " + amount);
+        // check that we're open
+        if ( !isOpen() ) {
+            System.out.println("Not enough bank offices open, try again later.");
+            return;
+        }
+        
+        // order this transaction via spread
+        System.out.println("Pending withdrawal: " + amount);
 
         Transaction tx = new Transaction(String.format("withdraw %f", amount));
         outstandingTransactions.add(tx);
     }
 
     void handleAddInterest(double rate) {
-        System.out.println("handleAddInterest: " + rate);
+        // check that we're open
+        if ( !isOpen() ) {
+            System.out.println("Not enough bank offices open, try again later.");
+            return;
+        }
+
+        // order this transaction via spread
+        System.out.println("Pending add interest: " + rate);
 
         Transaction tx = new Transaction(String.format("addInterest %f", rate));
         outstandingTransactions.add(tx);
@@ -230,6 +369,7 @@ public class Program implements AdvancedMessageListener {
 
     void handleCleanHistory() {
         System.out.println("handleCleanHistory");
+        // TODO
     }
 
     void handleMemberInfo() {
@@ -242,11 +382,7 @@ public class Program implements AdvancedMessageListener {
     }
 
     void handleSleep(int duration) {
-        try {
-            Thread.sleep(duration);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        sleep(duration);
     }
 
     void sendMessage(String string) {
@@ -270,45 +406,136 @@ public class Program implements AdvancedMessageListener {
      */
 
     public void regularMessageReceived(SpreadMessage message) {
-        System.out.println("Regular message received: " + getMessageString(message));
+        System.err.println("Regular message received: " + getMessageString(message));
+
         Transaction tx = Transaction.fromString(getMessageString(message));
+
+        // handle the transaction
+        boolean registerTransactionInHistory = handleTransaction( tx );
         
         // remove it from the outstanding transaction list
         for (Transaction t : outstandingTransactions) {
             if (t.getUniqueId().equals(tx.getUniqueId())) {
                 outstandingTransactions.remove(t);
-                // apply the transaction
-                theAccount.deposit(5);
-                // add it to the history
-                txHistory.add(tx);
                 return; // important, not execute rest of function
             }
         }
 
-        // tx was not found, we append it to the list
-        outstandingTransactions.add(tx);
-    }
-
-    void handleTransaction(Transaction tx) {
-        String[] tokens = tx.getCommand().split(" ");
-        switch (tokens[0]) {
-            case "deposit":
-                this.theAccount.deposit(Double.parseDouble(tokens[1]));
-                break;
-            case "withdraw":
-                this.theAccount.withdraw(Double.parseDouble(tokens[1]));
-                break;
-            case "addInterest":
-                this.theAccount.addInterest(Double.parseDouble(tokens[1]));
-                break;
-            default:
-                System.out.println("Invalid transaction, ignoring.");
+        // add it to the history if not a getBalance transaction
+        if ( registerTransactionInHistory ) {
+            txHistory.add(tx);
         }
     }
 
+    boolean handleTransaction(Transaction tx) { // returns true if transaction should be added to history
+        String[] tokens = tx.getCommand().split(" ");
+        switch (tokens[0]) {
+
+            // Modifying transactions, keep these in history (returns true)
+
+            case "deposit":
+                this.theAccount.deposit(Double.parseDouble(tokens[1]));
+                return( true );
+
+            case "withdraw":
+                this.theAccount.withdraw(Double.parseDouble(tokens[1]));
+                return( true );
+
+            case "addInterest":
+                this.theAccount.addInterest(Double.parseDouble(tokens[1]));
+                return( true );
+
+
+            // Non-modifying or syncup transactions, don't keep these in history (returns false)
+
+            case "getBalance":
+                // only execute if from myself
+                if (tokens[1].startsWith(this.replicaName)) {
+                    System.out.println("Synced Balance: " + this.theAccount.getBalance());
+                }
+                break;
+
+            case "ping":
+                // ignore if from myself
+                if (!tokens[1].startsWith(this.replicaName)) {
+                    // register new member in the cluster
+                    System.out.println("Pong to " + tokens[1]);
+                    handleNewReplicaMember(tokens[1], true);
+                }
+                break;
+
+            case "syncBalance":
+                // only execute if from myself
+                if (tokens[1].startsWith(this.replicaName)) {
+                    // send my balance to the new member
+                    Transaction balanceTx = new Transaction(String.format("balanceUpdate %s %f", this.replicaName, this.theAccount.getBalance()));
+                    sendMessage(balanceTx.toString());
+                }
+                break;
+
+            case "balanceUpdate":
+                // only execute if not from myself
+                if (!tokens[1].startsWith(this.replicaName)) {
+                    // update my balance
+                    this.theAccount.resetBalance(Double.parseDouble(tokens[2]));
+                }
+                break;
+
+            default:
+                System.out.println("Invalid transaction, ignoring.");
+        }
+
+        return( false );
+    }
+
     public void membershipMessageReceived(SpreadMessage message) {
-        System.out.println("Membership message received: " +  getMessageString(message));
-        // add or remove from groupMembers list
+        System.err.println("Membership message received: " +  getMessageString(message));
+        
+        // get the id of the replica, split token on # and take two last
+        String[] tokens = getMessageString(message).split("#");
+        String replicaName = String.format("%s-%s", tokens[tokens.length - 2], tokens[tokens.length - 1]);
+
+        // handle the new member
+        handleNewReplicaMember(replicaName, false);
+    }
+
+    void handleNewReplicaMember(String replicaName, boolean fromPing) {
+        // check if this exist in the members list, if so it is a deregistration
+        // unless, add it to the list
+        if (groupMembers.contains(replicaName)) {
+            groupMembers.remove(replicaName);
+
+            System.err.println("Member left: " + replicaName);
+
+            // If we have less than MINIMUM_REPLICAS online, we're not ready for business
+            if (groupMembers.size() == minimumReplicas - 1) { // -1 to only show message once
+                System.out.println("The bank is now closed!");
+            }
+        }
+        else {
+            groupMembers.add(replicaName);
+            System.err.println("New member: " + replicaName);
+
+            // make sure the new member gets to know the balance
+            if ( !fromPing ) {
+                if ( !replicaName.startsWith(this.replicaName) ) {
+                    initiateSyncNewMember(); 
+                }
+            }
+
+            // If we have MINIMUM_REPLICAS online, we're ready for business
+            if (groupMembers.size() == minimumReplicas) {
+                System.out.println("We have enough bank offices open, we're ready for business!");
+            }
+        }
+    }
+
+    void initiateSyncNewMember() {
+        Transaction ping = new Transaction(String.format("ping %s", this.replicaName));
+        outstandingTransactions.add(ping);
+
+        Transaction sendBalanceTx = new Transaction(String.format("syncBalance %s", this.replicaName));
+        outstandingTransactions.add(sendBalanceTx);
     }
 
     String getMessageString(SpreadMessage message) {
