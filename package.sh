@@ -23,7 +23,7 @@ chmod +x replica.jar
 # Build the docs
 pandoc README.md -o Report.pdf
 rm group7-artifacts.zip
-zip -r group7-artifacts.zip *.java *.pdf input.dat replica.jar
+zip -r group7-artifacts.zip *.java *.pdf input.dat replica.jar output.txt
 
 # Clean
 rm -rf ./bin
