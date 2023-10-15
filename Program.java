@@ -10,12 +10,12 @@ import java.util.UUID;
 import spread.*;
 
 public class Program implements AdvancedMessageListener {
-    static final int SECONDS_BETWEEN_SYNC = 60;
+    static final int SECONDS_BETWEEN_SYNC = 10;
 
     static String serverIp = "127.0.0.1";
     static int serverPort = 8764;
     static String accountName = "GROUP7-V13isLmyx";
-    static int minimumReplicas = 3;
+    static int minimumReplicas = 1;
     static String replicaName = UUID.randomUUID().toString().split("-")[0];
 
     private SpreadConnection connection;
@@ -26,6 +26,7 @@ public class Program implements AdvancedMessageListener {
     private List<String> groupMembers = new ArrayList<String>();
     private boolean run = true;
     private Thread syncThread;
+    private int sequenceCounter = 0;
 
     public static void main(String[] args) {
 
@@ -252,6 +253,7 @@ public class Program implements AdvancedMessageListener {
             case "stop":
                 Transaction tx = new Transaction("stop");
                 sendMessage(tx.toString());
+                break;
             default:
                 System.out.println("Invalid command.");
         }
@@ -355,7 +357,7 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Transaction History\n-------------------");
         // print the transaction history
         for (Transaction t : txHistory) {
-            System.out.println(t.toString());
+            System.out.println(t.getSequenceId() + ": " + t.toString());
         }
     }
 
@@ -382,7 +384,7 @@ public class Program implements AdvancedMessageListener {
 
     void handleCleanHistory() {
         System.out.println("handleCleanHistory");
-        // TODO
+        txHistory.clear();
     }
 
     void handleMemberInfo() {
@@ -433,12 +435,13 @@ public class Program implements AdvancedMessageListener {
         for (Transaction t : outstandingTransactions) {
             if (t.getUniqueId().equals(tx.getUniqueId())) {
                 outstandingTransactions.remove(t);
-                return; // important, not execute rest of function
+                break;
             }
         }
 
         // add it to the history if not a getBalance transaction
         if ( registerTransactionInHistory ) {
+            tx.setSequenceId(++sequenceCounter);
             txHistory.add(tx);
         }
     }
