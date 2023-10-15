@@ -10,15 +10,14 @@ rm *.class
 cp ./manifest.txt ./bin/META-INF/MANIFEST.MF
 javac -cp 'spread.jar' -d ./bin *.java
 
+# Decompress spread.jar
+cd bin
+jar xf ../spread.jar
+cd ..
 
 # Package the jar
-jar cvfm replica.jar ./bin/META-INF/MANIFEST.MF -C ./bin/ .
+jar cfe replica.jar Program -C ./bin/ .
 zip -ur replica.jar -j ./spread.jar
-zip replica.jar META-INF/MANIFEST.MF -d  # Delete the existing manifest file from the JAR
-cp ./manifest.txt ./bin/META-INF/MANIFEST.MF
-cd bin
-zip ../replica.jar META-INF/MANIFEST.MF  # Add the new manifest file to the JAR
-cd ..
 chmod +x replica.jar
 
 # Build the docs

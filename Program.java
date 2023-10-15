@@ -10,12 +10,12 @@ import java.util.UUID;
 import spread.*;
 
 public class Program implements AdvancedMessageListener {
-    static final int SECONDS_BETWEEN_SYNC = 2;
+    static final int SECONDS_BETWEEN_SYNC = 10;
 
     static String serverIp = "127.0.0.1";
     static int serverPort = 8764;
-    static String accountName = "GROUP7-V13isLmyl";
-    static int minimumReplicas = 3;
+    static String accountName = "GROUP7-V13isLmyx";
+    static int minimumReplicas = 1;
     static String replicaName = UUID.randomUUID().toString().split("-")[0];
 
     private SpreadConnection connection;
@@ -26,12 +26,19 @@ public class Program implements AdvancedMessageListener {
     private List<String> groupMembers = new ArrayList<String>();
     private boolean run = true;
     private Thread syncThread;
+    private int sequenceCounter = 0;
+    private int historyCounter = 0;
+    private Object syncLock = new Object();
 
     public static void main(String[] args) {
 
         try {
+
+            // parse command line arguments
             parseCommandLineArguments(args);
             printSettings();
+
+            // start our instance
             Program thisInstance = new Program();
 
             // interactive or batch?
@@ -43,6 +50,7 @@ public class Program implements AdvancedMessageListener {
             }
 
             // we're done, clean up
+            thisInstance.connection.remove(thisInstance);
             thisInstance.connection.disconnect();
 
         } catch ( Exception e ) {
@@ -73,6 +81,7 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Settings:\n" +
                 "Server: " + serverIp + ":" + serverPort + "\n" +
                 "Account: " + accountName + "\n" +
+                "Instance: " + replicaName + "\n" +
                 "Replicas: " + minimumReplicas + "\n");
     }
 
@@ -115,8 +124,10 @@ public class Program implements AdvancedMessageListener {
                 sleep(SECONDS_BETWEEN_SYNC);
 
                 // send all outstanding transactions
-                for (Transaction tx : outstandingTransactions) {
-                    sendMessage(tx.toString());
+                synchronized ( syncLock ) {
+                    for (Transaction tx : outstandingTransactions) {
+                        sendMessage(tx.toString());
+                    }
                 }
             }
         });
@@ -149,6 +160,7 @@ public class Program implements AdvancedMessageListener {
         while (true) {
             String command = scanner.nextLine();
             if (command.equals("exit")) {
+                System.out.println("Exiting...");
                 run = false;
                 joinBackgroundThread();
                 break;
@@ -245,6 +257,7 @@ public class Program implements AdvancedMessageListener {
             case "stop":
                 Transaction tx = new Transaction("stop");
                 sendMessage(tx.toString());
+                break;
             default:
                 System.out.println("Invalid command.");
         }
@@ -299,7 +312,9 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Pending getSyncedBalance");
 
         Transaction tx = new Transaction(String.format("getBalance %s", this.replicaName));
-        outstandingTransactions.add(tx);
+        synchronized( syncLock ) {
+            outstandingTransactions.add(tx);
+        }
     }
 
     void handleDeposit(double amount) {
@@ -313,7 +328,9 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Pending deposit: " + amount);
 
         Transaction tx = new Transaction(String.format("deposit %f", amount));
-        outstandingTransactions.add(tx);
+        synchronized( syncLock ) {
+            outstandingTransactions.add(tx);
+        }
     }
 
     void handleWithdraw(double amount) {
@@ -327,7 +344,9 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Pending withdrawal: " + amount);
 
         Transaction tx = new Transaction(String.format("withdraw %f", amount));
-        outstandingTransactions.add(tx);
+        synchronized( syncLock ) {
+            outstandingTransactions.add(tx);
+        }
     }
 
     void handleAddInterest(double rate) {
@@ -341,41 +360,66 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Pending add interest: " + rate);
 
         Transaction tx = new Transaction(String.format("addInterest %f", rate));
-        outstandingTransactions.add(tx);
+        synchronized( syncLock ) {
+            outstandingTransactions.add(tx);
+        }
     }
 
     void handleGetHistory() {
-        System.out.println("Transaction History\n-------------------");
         // print the transaction history
-        for (Transaction t : txHistory) {
-            System.out.println(t.toString());
+
+        if ( txHistory.size() > historyCounter ) {
+            System.out.println("Transaction History\n-------------------");
+            
+            synchronized ( syncLock ) {
+                for (int i = historyCounter; i < txHistory.size(); i++) {
+                    System.out.println(txHistory.get(i).getSequenceId() + ": " + txHistory.get(i).toString());
+                }
+            }
+        } else {
+            System.out.println("No (recent) transactions in history.");
+        }
+
+        if ( outstandingTransactions.size() > 0 ) {
+            System.out.println("Pending Transactions\n--------------------");
+            synchronized ( syncLock ) {
+                for (Transaction t : outstandingTransactions) {
+                    System.out.println(t.toString());
+                }
+            }
+        } else {
+            System.out.println("No pending transactions.");
         }
     }
 
     void handleCheckTransactionStatus(String transactionId) {
         System.out.println("handleCheckTransactionStatus: " + transactionId);
         // check if transactionId is in outstandingTransactions
-        for (Transaction t : outstandingTransactions) {
-            if (t.getUniqueId().equals(transactionId)) {
-                System.out.println("Transaction is outstanding");
-                return;
+        synchronized( syncLock ) {
+            for (Transaction t : outstandingTransactions) {
+                if (t.getUniqueId().equals(transactionId)) {
+                    System.out.println("Transaction is outstanding");
+                    return;
+                }
             }
         }
 
         System.out.println("Transaction is not in outstanding");
 
         // should now be in history
-        for (Transaction t : txHistory) {
-            if (t.getUniqueId().equals(transactionId)) {
-                System.out.println("Transaction is in history");
-                return;
+        synchronized ( syncLock ) {
+            for (Transaction t : txHistory) {
+                if (t.getUniqueId().equals(transactionId)) {
+                    System.out.println("Transaction is in history");
+                    return;
+                }
             }
         }
     }
 
     void handleCleanHistory() {
         System.out.println("handleCleanHistory");
-        // TODO
+        historyCounter = txHistory.size();
     }
 
     void handleMemberInfo() {
@@ -419,20 +463,35 @@ public class Program implements AdvancedMessageListener {
             System.exit(2);
         }
 
+        // check in txHistory if we have already performed this transaction
+        synchronized ( syncLock ) {
+            for (Transaction t : txHistory) {
+                if (t.getUniqueId().equals(tx.getUniqueId())) {
+                    System.out.println("Transaction already performed, ignoring.");
+                    return;
+                }
+            }
+        }
+
         // handle the transaction
         boolean registerTransactionInHistory = handleTransaction( tx );
         
         // remove it from the outstanding transaction list
-        for (Transaction t : outstandingTransactions) {
-            if (t.getUniqueId().equals(tx.getUniqueId())) {
-                outstandingTransactions.remove(t);
-                return; // important, not execute rest of function
+        synchronized( syncLock ) {
+            for (Transaction t : outstandingTransactions) {
+                if (t.getUniqueId().equals(tx.getUniqueId())) {
+                    outstandingTransactions.remove(t);
+                    break;
+                }
             }
         }
 
         // add it to the history if not a getBalance transaction
-        if ( registerTransactionInHistory ) {
-            txHistory.add(tx);
+        synchronized ( syncLock ) {
+            if ( registerTransactionInHistory ) {
+                tx.setSequenceId(++sequenceCounter);
+                txHistory.add(tx);
+            }
         }
     }
 
@@ -473,12 +532,19 @@ public class Program implements AdvancedMessageListener {
                 }
                 break;
 
-            case "syncBalance":
+            case "syncState":
                 // only execute if from myself
                 if (tokens[1].startsWith(this.replicaName)) {
                     // send my balance to the new member
-                    Transaction balanceTx = new Transaction(String.format("balanceUpdate %s %f", this.replicaName, this.theAccount.getBalance()));
-                    sendMessage(balanceTx.toString());
+                    // Transaction balanceTx = new Transaction(String.format("balanceUpdate %s %f", this.replicaName, this.theAccount.getBalance()));
+                    // sendMessage(balanceTx.toString());
+                    
+                    // Send everything in txHistory
+                    synchronized( syncLock ) {
+                        for (Transaction t : txHistory) {
+                            sendMessage(t.toString());
+                        }
+                    }
                 }
                 break;
 
@@ -540,11 +606,13 @@ public class Program implements AdvancedMessageListener {
     }
 
     void initiateSyncNewMember() {
-        Transaction ping = new Transaction(String.format("ping %s", this.replicaName));
-        outstandingTransactions.add(ping);
+        synchronized( syncLock ) {
+            Transaction ping = new Transaction(String.format("ping %s", this.replicaName));
+            outstandingTransactions.add(ping);
 
-        Transaction sendBalanceTx = new Transaction(String.format("syncBalance %s", this.replicaName));
-        outstandingTransactions.add(sendBalanceTx);
+            Transaction sendBalanceTx = new Transaction(String.format("syncState %s", this.replicaName));
+            outstandingTransactions.add(sendBalanceTx);
+        }
     }
 
     String getMessageString(SpreadMessage message) {

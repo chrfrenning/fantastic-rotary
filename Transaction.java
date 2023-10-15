@@ -3,10 +3,12 @@ import java.util.UUID;
 public class Transaction {
     private String command;
     private String uniqueId;
+    private int sequenceId;
 
     public Transaction(String command) {
         this.command = command;
         this.uniqueId = UUID.randomUUID().toString().split("-")[0];
+        this.sequenceId = -1;
     }
 
     public String getCommand() {
@@ -23,6 +25,14 @@ public class Transaction {
 
     public void setUniqueId(String uniqueId) {
         this.uniqueId = uniqueId;
+    }
+
+    public void setSequenceId(int sequenceId) {
+        this.sequenceId = sequenceId;
+    }
+
+    public int getSequenceId() {
+        return sequenceId;
     }
 
     public String toString() {
