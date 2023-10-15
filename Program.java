@@ -14,7 +14,7 @@ public class Program implements AdvancedMessageListener {
 
     static String serverIp = "127.0.0.1";
     static int serverPort = 8764;
-    static String accountName = "GROUP7-V13isLmyl";
+    static String accountName = "GROUP7-V13isLmyx";
     static int minimumReplicas = 3;
     static String replicaName = UUID.randomUUID().toString().split("-")[0];
 
@@ -43,6 +43,7 @@ public class Program implements AdvancedMessageListener {
             }
 
             // we're done, clean up
+            thisInstance.connection.remove(thisInstance);
             thisInstance.connection.disconnect();
 
         } catch ( Exception e ) {
@@ -73,6 +74,7 @@ public class Program implements AdvancedMessageListener {
         System.out.println("Settings:\n" +
                 "Server: " + serverIp + ":" + serverPort + "\n" +
                 "Account: " + accountName + "\n" +
+                "Instance: " + replicaName + "\n" +
                 "Replicas: " + minimumReplicas + "\n");
     }
 
@@ -149,6 +151,7 @@ public class Program implements AdvancedMessageListener {
         while (true) {
             String command = scanner.nextLine();
             if (command.equals("exit")) {
+                System.out.println("Exiting...");
                 run = false;
                 joinBackgroundThread();
                 break;
