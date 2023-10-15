@@ -1,0 +1,107 @@
+$ javac -cp 'spread.jar' *.java
+$ java -cp '.:spread.jar' Program --file "input.dat"
+Settings:
+Server: 127.0.0.1:8765
+Account: GROUP7-V13isLmyx
+Instance: d525a113
+Replicas: 1
+
+Processing commands from file: input.dat
+Membership message received: &��^�+e#d525a113#localhost
+New member: d525a113-localhost
+We have enough bank offices open, we're ready for business!
+We have enough bank offices open, lets crunch those numbers!
+Group Members
+-------------
+d525a113-localhost
+
+Pending getSyncedBalance
+Account::getBalance 0.0
+getQuickBalance: 0.0
+Pending deposit: 100.0
+handleCheckTransactionStatus: <add
+Transaction is not in outstanding
+Pending getSyncedBalance
+Account::getBalance 0.0
+getQuickBalance: 0.0
+Pending deposit: 100.0
+Account::getBalance 0.0
+getQuickBalance: 0.0
+Pending getSyncedBalance
+Pending add interest: 10.0
+Pending getSyncedBalance
+Pending deposit: 100.0
+Pending deposit: 50.0
+Pending deposit: 40.0
+Pending deposit: 30.0
+Pending deposit: 20.0
+Pending deposit: 10.0
+Regular message received: 9399d043 getBalance d525a113
+Pending add interest: 10.0
+Account::getBalance 0.0
+Pending getSyncedBalance
+Synced Balance: 0.0
+Account::getBalance 0.0
+Regular message received: a09ff3a1 deposit 100.000000
+getQuickBalance: 0.0
+Pending deposit: 100.0
+Account::deposit of 100.000000, new balance 100.000000
+Pending deposit: 100.0
+Regular message received: e55a684b getBalance d525a113
+Pending add interest: 20.0
+Account::getBalance 100.0
+Synced Balance: 100.0
+handleCheckTransactionStatus: <add
+Transaction is not in outstanding
+Regular message received: 39aa1f22 deposit 100.000000
+Group Members
+-------------
+d525a113-localhost
+
+Transaction History
+-------------------
+Account::deposit of 100.000000, new balance 200.000000
+1: a09ff3a1 deposit 100.000000
+Pending Transactions
+--------------------
+91edcace getBalance d525a113
+ac045517 addInterest 10.000000
+a9ac558d getBalance d525a113
+a3e14e32 deposit 100.000000
+9321caf1 deposit 50.000000
+55be351e deposit 40.000000
+e3031c38 deposit 30.000000
+385506bb deposit 20.000000
+74400abe deposit 10.000000
+1908c4ba addInterest 10.000000
+f4dc9769 getBalance d525a113
+64e1a004 deposit 100.000000
+f9d35571 deposit 100.000000
+568360f7 addInterest 20.000000
+handleCleanHistory
+Pending deposit: 100.0
+Pending getSyncedBalance
+Account::getBalance 200.0
+getQuickBalance: 200.0
+No (recent) transactions in history.
+Pending Transactions
+--------------------
+91edcace getBalance d525a113
+ac045517 addInterest 10.000000
+a9ac558d getBalance d525a113
+a3e14e32 deposit 100.000000
+9321caf1 deposit 50.000000
+55be351e deposit 40.000000
+e3031c38 deposit 30.000000
+385506bb deposit 20.000000
+74400abe deposit 10.000000
+1908c4ba addInterest 10.000000
+f4dc9769 getBalance d525a113
+64e1a004 deposit 100.000000
+f9d35571 deposit 100.000000
+568360f7 addInterest 20.000000
+cf625df1 deposit 100.000000
+6afe480e getBalance d525a113
+Exiting...
+LISTENER: told to exit so returning
+$
