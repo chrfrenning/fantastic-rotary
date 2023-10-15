@@ -8,7 +8,7 @@ import java.util.UUID;
 
 import spread.*;
 
-public class Replica implements AdvancedMessageListener {
+public class Program implements AdvancedMessageListener {
     static final int SECONDS_BETWEEN_SYNC = 2;
 
     static String serverIp = "127.0.0.1";
@@ -31,7 +31,7 @@ public class Replica implements AdvancedMessageListener {
         try {
             parseCommandLineArguments(args);
             printSettings();
-            Program thisInstance = new Replica();
+            Program thisInstance = new Program();
 
             // interactive or batch?
             Optional<String> commandFileName = parseArguments(args, "file", "f");
@@ -98,7 +98,7 @@ public class Replica implements AdvancedMessageListener {
         }
     }
 
-    public Replica() throws Exception {
+    public Program() throws Exception {
 
         connection = new SpreadConnection();
         connection.connect(InetAddress.getByName(serverIp), serverPort, replicaName, true, true);
