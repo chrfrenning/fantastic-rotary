@@ -10,7 +10,7 @@ import java.util.UUID;
 import spread.*;
 
 public class Program implements AdvancedMessageListener {
-    static final int SECONDS_BETWEEN_SYNC = 2;
+    static final int SECONDS_BETWEEN_SYNC = 60;
 
     static String serverIp = "127.0.0.1";
     static int serverPort = 8764;
@@ -30,8 +30,12 @@ public class Program implements AdvancedMessageListener {
     public static void main(String[] args) {
 
         try {
+
+            // parse command line arguments
             parseCommandLineArguments(args);
             printSettings();
+
+            // start our instance
             Program thisInstance = new Program();
 
             // interactive or batch?
