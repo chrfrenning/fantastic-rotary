@@ -502,7 +502,7 @@ public class Program implements AdvancedMessageListener {
     void handleNewReplicaMember(String replicaName, boolean fromPing) {
         // check if this exist in the members list, if so it is a deregistration
         // unless, add it to the list
-        if (groupMembers.contains(replicaName)) {
+        if (groupMembers.contains(replicaName) && !fromPing) {
             groupMembers.remove(replicaName);
 
             System.err.println("Member left: " + replicaName);
