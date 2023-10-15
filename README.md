@@ -3,7 +3,11 @@
 # IN5020 Assignment 2 - Distributed Bank Account with Spread Toolkit
 ## Autumn 2023 Group G7
 
+# Source code repository
 The code for this project is available on [https://github.com/chrfrenning/fantastic-rotary](https://github.com/chrfrenning/fantastic-rotary).
+
+# Workload distribution
+For this assignment, we have applied pair programming collaboration. We met for several hours twice and discussed the solution, while one of us coded. Each member of the team had their own local setup to test and validate the implementation.
 
 # Differences between the two getSyncedBalance approaches.
 
@@ -43,5 +47,3 @@ Spread may be running, otherwise you can start it with the following command:
 ### Running the program (for developers)
 
 Use `./run.sh` to compile and run the java app.
-
-
